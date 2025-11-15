@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llama3-finetune-job
+spec:
+  template:
+    spec:
+      serviceAccountName: llama3-finetuner-ksa # IAM Service Account와 연동된 Kubernetes Service Account 사용
+      restartPolicy: Never # 디버깅을 위해 실패 시 다시 시작하지 않음
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-h100-mega-80gb
+      containers:
+      - name: finetuner
+        image: <YOUR_GCP_REGION>-docker.pkg.dev/<YOUR_PROJECT_ID>/ml-containers/llama-fsdp-trainer:latest
+        command: ["python", "/app/scripts/finetune.py"]
+        env:
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: huggingface-secret
+              key: token
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        - mountPath: /tmp
+          name: tmp
+        resources:
+          limits:
+            nvidia.com/gpu: 8
+        securityContext:
+          privileged: true
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 128Gi # A3 Mega 인스턴스의 대용량 메모리를 활용
+      - name: tmp
+        emptyDir: {}
+      hostIPC: true
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+  backoffLimit: 1
