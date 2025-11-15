@@ -1,10 +1,10 @@
-# GKE(Google Kubernetes Engine)를 활용한 Llama 3 파인튜닝 가이드
+# GKE를 활용한 Llama 3 파인튜닝 가이드
 
 이 문서는 Google Kubernetes Engine(GKE)의 `a3-megagpu-8g` (NVIDIA H100 8 chips) 인스턴스를 사용하여 `meta-llama/Meta-Llama-3-8B-Instruct` 모델을 파인튜닝 하는 전체 과정을 안내합니다.
 
 ## 프로젝트 목표
 
--   `databricks/databricks-dolly-15k` 데이터셋을 사용하여 Llama 3 모델을 효율적으로 파인튜닝합니다.
+-   `databricks/databricks-dolly-15k` 데이터셋을 사용하여 Llama 3 모델을 효율적으로 파인 튜닝합니다.
 -   Workload Identity를 사용하여 GKE에서 Google Cloud Storage(GCS)로 안전하게 모델 아티팩트를 업로드합니다.
 -   전체 과정을 재현할 수 있도록 Dockerfile, Kubernetes Job YAML, 스크립트를 제공합니다.
 

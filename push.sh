@@ -1,5 +1,5 @@
-export PROJECT_ID="zeta-range-350705"
-export REGION="us-central1"
+export PROJECT_ID=<YOUR_PROJECT_ID>
+export REGION=<LOCATION>
 export REPO_NAME="ml-containers"
 export IMAGE_NAME="llama-fsdp-trainer:latest"
 
