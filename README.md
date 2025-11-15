@@ -1,10 +1,10 @@
-# GKE a3-megagpu-8g 인스턴스를 활용한 Llama 3 미세 조정 가이드
+# GKE(Google Kubernetes Engine)를 활용한 Llama 3 파인튜닝 가이드
 
-이 문서는 Google Kubernetes Engine(GKE)의 `a3-megagpu-8g` (NVIDIA H100 8개 장착) 인스턴스를 사용하여 `meta-llama/Meta-Llama-3-8B-Instruct` 모델을 미세 조정하는 전체 과정을 안내합니다.
+이 문서는 Google Kubernetes Engine(GKE)의 `a3-megagpu-8g` (NVIDIA H100 8 chips) 인스턴스를 사용하여 `meta-llama/Meta-Llama-3-8B-Instruct` 모델을 파인튜닝 하는 전체 과정을 안내합니다.
 
 ## 프로젝트 목표
 
--   `databricks/databricks-dolly-15k` 데이터셋을 사용하여 Llama 3 모델을 효율적으로 미세 조정합니다.
+-   `databricks/databricks-dolly-15k` 데이터셋을 사용하여 Llama 3 모델을 효율적으로 파인튜닝합니다.
 -   Workload Identity를 사용하여 GKE에서 Google Cloud Storage(GCS)로 안전하게 모델 아티팩트를 업로드합니다.
 -   전체 과정을 재현할 수 있도록 Dockerfile, Kubernetes Job YAML, 스크립트를 제공합니다.
 
@@ -16,7 +16,7 @@
 2.  **CLI 도구**: `gcloud` CLI와 `kubectl`이 로컬 머신에 설치 및 인증되어 있어야 합니다.
 3.  **GKE 클러스터**: `a3-megagpu-8g` 노드 풀이 구성된 GKE 클러스터가 필요합니다.
     -   **참고**: `a3-megagpu-8g`는 할당량이 필요하며, `us-central1`과 같은 특정 리전에서만 사용할 수 있습니다.
-4.  **GCS Bucket**: 미세 조정된 모델 아티팩트를 저장할 GCS 버킷이 필요합니다.
+4.  **GCS Bucket**: 파인튜닝 된 모델 아티팩트를 저장할 GCS 버킷이 필요합니다.
 5.  **Hugging Face 계정**: Llama 3 모델에 접근하려면 Hugging Face 계정과 `hf_...` 형식의 액세스 토큰이 필요합니다.
 
 ---
@@ -80,7 +80,7 @@ kubectl create secret generic huggingface-secret \
 
 ### 3. Docker 이미지 빌드 및 푸시
 
-제공된 `Dockerfile`을 사용하여 미세 조정 환경을 포함하는 Docker 이미지를 빌드하고, Google Artifact Registry에 푸시합니다.
+제공된 `Dockerfile`을 사용하여 파인튜닝 환경을 포함하는 Docker 이미지를 빌드하고, Google Artifact Registry에 푸시합니다.
 
 `push.sh` 스크립트는 이 과정을 자동화합니다. 스크립트 내의 `PROJECT_ID`와 `REPO`를 자신의 환경에 맞게 수정하세요.
 
@@ -104,7 +104,7 @@ gcloud builds submit --tag ${IMAGE_URI} .
 bash push.sh
 ```
 
-### 4. 미세 조정 작업 실행
+### 4. 파인 튜닝 작업 실행
 
 모든 설정이 완료되면 `finetune-job.yaml` 파일을 사용하여 Kubernetes Job을 실행합니다. 이 파일은 올바른 서비스 계정, 노드 셀렉터, 리소스 등을 사용하도록 사전 구성되어 있습니다.
 
@@ -145,7 +145,7 @@ Fine-tuning and GCS upload complete!
 
 #### 3. GCS 버킷 결과 확인
 
-작업이 성공적으로 완료되면, 미세 조정된 모델 아티팩트가 GCS 버킷에 저장됩니다. `gsutil` 명령어로 파일 목록을 확인할 수 있습니다.
+작업이 성공적으로 완료되면, 파인 튜닝 된 모델 아티팩트가 GCS 버킷에 저장됩니다. `gsutil` 명령어로 파일 목록을 확인할 수 있습니다.
 
 ```bash
 gsutil ls gs://<YOUR_GCS_BUCKET_NAME>/final_model/
@@ -164,7 +164,7 @@ gsutil ls gs://<YOUR_GCS_BUCKET_NAME>/final_model/
 
 ## 파일 설명
 
--   **`Dockerfile`**: 미세 조정 환경을 위한 Docker 이미지를 빌드하는 파일입니다. (상세 설명은 위 `파일 상세 설명` 섹션 참조)
--   **`finetune-job.yaml`**: GKE에서 미세 조정 Job을 실행하기 위한 Kubernetes 명세 파일입니다. (상세 설명은 위 `파일 상세 설명` 섹션 참조)
--   **`scripts/finetune.py`**: 실제 모델 로드, 데이터 처리, 미세 조정 및 GCS 업로드를 수행하는 Python 스크립트입니다.
+-   **`Dockerfile`**: 파인 튜닝 환경을 위한 Docker 이미지를 빌드하는 파일입니다. (상세 설명은 위 `파일 상세 설명` 섹션 참조)
+-   **`finetune-job.yaml`**: GKE에서 파인 튜닝 Job을 실행하기 위한 Kubernetes 명세 파일입니다. (상세 설명은 위 `파일 상세 설명` 섹션 참조)
+-   **`scripts/finetune.py`**: 실제 모델 로드, 데이터 처리, 파인 튜닝 및 GCS 업로드를 수행하는 Python 스크립트입니다.
 -   **`push.sh`**: `Dockerfile`을 빌드하고 Google Artifact Registry에 이미지를 푸시하는 과정을 자동화하는 셸 스크립트입니다.
