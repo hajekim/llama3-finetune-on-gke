@@ -1,19 +1,18 @@
-export PROJECT_ID=<YOUR_PROJECT_ID>
-export REGION=<LOCATION>
-export REPO_NAME="ml-containers"
-export IMAGE_NAME="llama-fsdp-trainer:latest"
+#!/bin/bash
 
-# 1. Artifact Registry 저장소 생성
-gcloud artifacts repositories create ${REPO_NAME} \
-    --repository-format=docker \
-    --location=${REGION} \
-    --description="Docker repo for ML training images"
+# Artifact Registry 설정
+export PROJECT_ID="zeta-range-350705" # 본인의 GCP 프로젝트 ID로 변경하세요.
+export REGION="us-central1" # GKE 클러스터가 위치한 리전으로 변경하세요 (예: us-central1).
+export AR_REPO="llama3-finetune-repo" # Artifact Registry 리포지토리 이름
+export IMAGE_NAME="llama3-finetune"
+export TAG="latest"
 
-# 2. gcloud CLI에 Docker 인증 구성
-gcloud auth configure-docker ${REGION}-docker.pkg.dev
-docker build -t ${REPO_NAME}/${IMAGE_NAME} .
+export IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}:${TAG}"
 
-# 3. Cloud Build를 사용하여 Dockerfile 빌드 및 푸시
-gcloud builds submit . \
-    --region=${REGION} \
-    --tag=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}
+echo "Building Docker image: ${IMAGE_URI}"
+docker build -t ${IMAGE_URI} .
+
+echo "Pushing Docker image: ${IMAGE_URI}"
+docker push ${IMAGE_URI}
+
+echo "Docker image build and push complete!"

@@ -1,0 +1,85 @@
+# 다중 노드 통신을 위한 헤드리스 서비스
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama3-finetune-job-headless
+spec:
+  clusterIP: None # 헤드리스 서비스
+  selector:
+    job-name: llama3-finetune-job-multinode # 아래 Job의 파드와 연결
+
+---
+
+# 다중 노드 미세 조정 작업을 위한 Kubernetes Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llama3-finetune-job-multinode
+spec:
+  completions: 2 # 2개의 파드가 모두 성공해야 Job이 완료됨
+  parallelism: 2 # 2개의 파드를 동시에 실행
+  completionMode: Indexed # 파드에 0, 1, ... 인덱스를 부여
+  template:
+    spec:
+      serviceAccountName: llama3-finetuner-ksa
+      restartPolicy: Never
+      nodeSelector:
+        cloud.google.com/gke-accelerator: nvidia-h100-mega-80gb
+      containers:
+      - name: finetuner
+        image: us-central1-docker.pkg.dev/zeta-range-350705/llama3-finetune/llama3-finetune:latest
+        command:
+        - "bash"
+        - "-c"
+        - |
+          # MASTER_ADDR은 헤드리스 서비스의 FQDN으로 설정
+          export MASTER_ADDR="llama3-finetune-job-headless.default.svc.cluster.local"
+          export MASTER_PORT="29500" # 기본 포트
+          export WORLD_SIZE="2" # 전체 파드 수
+          # JOB_COMPLETION_INDEX는 Kubernetes가 자동으로 주입 (0 또는 1)
+          export RANK="${JOB_COMPLETION_INDEX}"
+
+          echo "Starting multi-node training..."
+          echo "MASTER_ADDR: ${MASTER_ADDR}"
+          echo "RANK: ${RANK}"
+          echo "WORLD_SIZE: ${WORLD_SIZE}"
+
+          torchrun \
+            --nproc_per_node=8 \
+            --nnodes=2 \
+            --node_rank=${RANK} \
+            --master_addr=${MASTER_ADDR} \
+            --master_port=${MASTER_PORT} \
+            /app/scripts/finetune.py
+        env:
+        - name: NCCL_SOCKET_IFNAME
+          value: "eth0"
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: huggingface-secret
+              key: token
+        - name: JOB_COMPLETION_INDEX # downward API를 통해 파드 인덱스를 환경 변수로 주입
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+        resources:
+          limits:
+            nvidia.com/gpu: 8
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 128Gi
+      hostIPC: true
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"

@@ -11,8 +11,11 @@ spec:
         cloud.google.com/gke-accelerator: nvidia-h100-mega-80gb
       containers:
       - name: finetuner
-        image: <YOUR_GCP_REGION>-docker.pkg.dev/<YOUR_PROJECT_ID>/ml-containers/llama-fsdp-trainer:latest
-        command: ["python", "/app/scripts/finetune.py"]
+        image: us-central1-docker.pkg.dev/zeta-range-350705/llama3-finetune/llama3-finetune:latest
+        command:
+        - "bash"
+        - "-c"
+        - "python /app/scripts/finetune.py"
         env:
         - name: HUGGING_FACE_HUB_TOKEN
           valueFrom:
