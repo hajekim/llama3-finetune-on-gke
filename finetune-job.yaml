@@ -11,12 +11,14 @@ spec:
         cloud.google.com/gke-accelerator: nvidia-h100-mega-80gb
       containers:
       - name: finetuner
-        image: us-central1-docker.pkg.dev/zeta-range-350705/llama3-finetune/llama3-finetune:latest
+        image: <YOUR_IMAGE_URI> # 🚨 push.sh로 빌드한 본인의 이미지 URI로 변경하세요.
         command:
         - "bash"
         - "-c"
         - "python /app/scripts/finetune.py"
         env:
+        - name: GCS_BUCKET_NAME
+          value: "<YOUR_GCS_BUCKET_NAME>" # 🚨 본인의 GCS 버킷 이름으로 변경하세요.
         - name: HUGGING_FACE_HUB_TOKEN
           valueFrom:
             secretKeyRef:

@@ -30,7 +30,7 @@ GKE 파드가 GCS에 안전하게 접근할 수 있도록 Workload Identity를 �
 #### 1.1. IAM 서비스 계정 생성
 
 ```bash
-# 변수 설정
+# 변수 설정 (본인의 환경에 맞게 수정하세요)
 export PROJECT_ID="<YOUR_PROJECT_ID>"
 export GCS_BUCKET_NAME="<YOUR_GCS_BUCKET_NAME>"
 export IAM_SA_NAME="llama3-finetuner-sa"
@@ -105,13 +105,14 @@ gcloud artifacts repositories create ${AR_REPO} \
 `push.sh` 스크립트는 이 과정을 자동화합니다. 스크립트 내의 변수를 자신의 환경에 맞게 수정하세요.
 
 ```bash
-# push.sh
+# push.sh (본인의 환경에 맞게 수정하세요)
 export PROJECT_ID="<YOUR_PROJECT_ID>"
 export REGION="<YOUR_GCP_REGION>"
 export AR_REPO="llama3-finetune-repo"
 export IMAGE_NAME="llama3-finetune"
 export TAG="latest"
 
+# 최종 이미지 URI
 export IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${IMAGE_NAME}:${TAG}"
 
 # Docker 이미지 빌드 및 푸시

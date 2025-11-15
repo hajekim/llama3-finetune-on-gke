@@ -121,9 +121,18 @@ if accelerator.is_main_process:
     print(f"Model saved locally to {local_model_dir}")
 
     # 9. GCS에 모델 업로드
-    gcs_bucket_name = "oreo-llama"
+    # 환경 변수에서 GCS 버킷 이름을 읽어오고, 없으면 기본값을 사용합니다.
+    gcs_bucket_name = os.environ.get("GCS_BUCKET_NAME", "default-gcs-bucket-name")
     gcs_blob_prefix = "final_model"
-    upload_to_gcs(gcs_bucket_name, local_model_dir, gcs_blob_prefix)
+    
+    if gcs_bucket_name == "default-gcs-bucket-name":
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("!!! WARNING: GCS_BUCKET_NAME env var not set.        !!!")
+        print("!!! Skipping GCS upload.                           !!!")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    else:
+        print(f"Attempting to upload to GCS bucket: {gcs_bucket_name}")
+        upload_to_gcs(gcs_bucket_name, local_model_dir, gcs_blob_prefix)
 
 accelerator.wait_for_everyone()
 if accelerator.is_main_process:
