@@ -1,12 +1,12 @@
-# GKE를 활용한 Llama 3 파인튜닝 가이드
+# GKE를 활용한 Llama 3 파인 튜닝 가이드
 
-이 문서는 Google Kubernetes Engine(GKE)의 `a3-megagpu-8g` (NVIDIA H100 8 chips) 인스턴스를 사용하여 `meta-llama/Meta-Llama-3-8B-Instruct` 모델을 파인튜닝 하는 전체 과정을 안내합니다. 단일 노드(8 GPUs) 및 다중 노드(16 GPUs) 설정에 대한 지침을 모두 포함합니다.
+이 문서는 GKE(Google Kubernetes Engine)의 `a3-megagpu-8g` (NVIDIA H100 8 chips) 인스턴스를 사용하여 `meta-llama/Meta-Llama-3-8B-Instruct` 모델을 파인 튜닝 하는 전체 과정을 안내합니다. 싱글 노드(8 GPUs) 및 멀티 노드(16 GPUs) 설정에 대한 지침을 모두 포함합니다.
 
 ## 프로젝트 목표
 
 -   `databricks/databricks-dolly-15k` 데이터셋을 사용하여 Llama 3 모델을 효율적으로 파인 튜닝합니다.
--   Workload Identity를 사용하여 GKE에서 Google Cloud Storage(GCS)로 안전하게 모델 아티팩트를 업로드합니다.
--   단일 노드 및 다중 노드 학습을 재현할 수 있도록 Dockerfile, Kubernetes Job YAML, 스크립트를 제공합니다.
+-   Workload Identity를 사용하여 GKE에서 GCS(Google Cloud Storage)로 안전하게 모델 아티팩트를 업로드합니다.
+-   싱글 노드 및 멀티 노드 학습을 재현할 수 있도록 Dockerfile, Kubernetes Job YAML, 스크립트를 제공합니다.
 
 ---
 
@@ -15,8 +15,8 @@
 1.  **Google Cloud Project**: 결제가 활성화된 GCP 프로젝트가 필요합니다.
 2.  **CLI 도구**: `gcloud` CLI와 `kubectl`이 로컬 머신에 설치 및 인증되어 있어야 합니다.
 3.  **GKE 클러스터**: `a3-megagpu-8g` 노드 풀이 구성된 GKE 클러스터가 필요합니다.
-    -   **참고**: `a3-megagpu-8g`는 할당량이 필요하며, `us-central1`과 같은 특정 리전에서만 사용할 수 있습니다.
-4.  **GCS Bucket**: 파인튜닝 된 모델 아티팩트를 저장할 GCS 버킷이 필요합니다.
+    -   **참고**: `a3-megagpu-8g` Quota가 필요하며, 할당 받은 리전에서 사용할 수 있습니다.
+4.  **GCS Bucket**: 파인 튜닝 된 모델 아티팩트를 저장할 GCS 버킷이 필요합니다.
 5.  **Hugging Face 계정**: Llama 3 모델에 접근하려면 Hugging Face 계정과 `hf_...` 형식의 액세스 토큰이 필요합니다.
 
 ---
@@ -85,7 +85,7 @@ kubectl create secret generic huggingface-secret \
 
 ### 3. Docker 이미지 빌드 및 푸시
 
-제공된 `Dockerfile`을 사용하여 파인튜닝 환경을 포함하는 Docker 이미지를 빌드하고, Google Artifact Registry에 푸시합니다.
+제공된 `Dockerfile`을 사용하여 파인 튜닝 환경을 포함하는 Docker 이미지를 빌드하고, Google Artifact Registry에 푸시합니다.
 
 #### 3.1. Artifact Registry 리포지토리 생성
 
@@ -128,11 +128,11 @@ bash push.sh
 
 ---
 
-## 🚀 단일 노드 파인튜닝 (8 GPUs)
+## 🚀 Single Node Fine Tuning (H100 8 GPUs)
 
-### 1. 파인튜닝 작업 실행
+### 1. 파인 튜닝 작업 실행
 
-`finetune-job.yaml` 파일을 사용하여 Kubernetes Job을 실행합니다. 이 파일은 단일 `a3-megagpu-8g` 노드에서 8개의 GPU를 모두 사용하도록 설정되어 있습니다.
+`finetune-job.yaml` 파일을 사용하여 Kubernetes Job을 실행합니다. 이 파일은 싱글 `a3-megagpu-8g` 노드에서 8개의 GPU를 모두 사용하도록 설정되어 있습니다.
 
 **참고:** `finetune-job.yaml` 파일 내의 `image` 경로를 위 단계에서 푸시한 본인의 Artifact Registry 이미지 경로로 수정해야 합니다.
 
@@ -162,7 +162,7 @@ gsutil ls gs://<YOUR_GCS_BUCKET_NAME>/final_model/
 
 ---
 
-## 🚀 다중 노드 파인튜닝 (16 GPUs)
+## 🚀 Multi Node Fine Tuning (H100 16 GPUs)
 
 이 설정은 2개의 `a3-megagpu-8g` 노드를 사용하여 총 16개의 GPU로 분산 학습을 수행합니다. PyTorch의 `torchrun`을 사용하여 분산 환경을 구성합니다.
 
@@ -183,7 +183,7 @@ gcloud container clusters resize ${CLUSTER_NAME} \
     --region=${REGION}
 ```
 
-### 2. 다중 노드 작업 실행
+### 2. 멀티 노드 작업 실행
 
 `finetune-job-multinode.yaml`은 `torchrun`을 사용하여 2개의 노드에서 분산 학습을 실행하도록 구성되어 있습니다.
 
@@ -191,7 +191,7 @@ gcloud container clusters resize ${CLUSTER_NAME} \
 -   **Headless Service:** 파드 간의 안정적인 통신을 위해 `clusterIP: None`으로 설정된 헤드리스 서비스를 사용합니다.
 -   **Indexed Job:** `completionMode: Indexed`를 사용하여 각 파드에 고유한 인덱스(0 또는 1)를 부여합니다. 이 인덱스는 `JOB_COMPLETION_INDEX` 환경 변수를 통해 컨테이너 내부로 전달되어 `torchrun`의 `node_rank`로 사용됩니다.
 -   **torchrun:** `command` 섹션에서 `torchrun`을 직접 호출하여 `--nnodes=2`, `--nproc_per_node=8` 등의 분산 학습 파라미터를 명시적으로 설정합니다.
--   **NCCL 환경 변수:** `NCCL_SOCKET_IFNAME=eth0`를 설정하여 다중 노드 통신에 사용할 네트워크 인터페이스를 지정합니다.
+-   **NCCL 환경 변수:** `NCCL_SOCKET_IFNAME=eth0`를 설정하여 멀티 노드 통신에 사용할 네트워크 인터페이스를 지정합니다.
 
 **참고:** `finetune-job-multinode.yaml` 파일 내의 `image` 경로를 본인의 Artifact Registry 이미지 경로로 수정해야 합니다.
 
@@ -227,7 +227,7 @@ kubectl logs -f $POD_NAME_1
 ## 파일 설명
 
 -   **`Dockerfile`**: 파인 튜닝 환경을 위한 Docker 이미지를 빌드하는 파일입니다.
--   **`finetune-job.yaml`**: 단일 노드 GKE 파인 튜닝 Job을 위한 Kubernetes 명세 파일입니다.
--   **`finetune-job-multinode.yaml`**: 다중 노드 분산 학습을 위한 Kubernetes Service 및 Job 명세 파일입니다.
+-   **`finetune-job.yaml`**: 싱글 노드 GKE 파인 튜닝 Job을 위한 Kubernetes 명세 파일입니다.
+-   **`finetune-job-multinode.yaml`**: 멀티 노드 분산 학습을 위한 Kubernetes Service 및 Job 명세 파일입니다.
 -   **`scripts/finetune.py`**: 실제 모델 로드, 데이터 처리, 파인 튜닝 및 GCS 업로드를 수행하는 Python 스크립트입니다.
 -   **`push.sh`**: `Dockerfile`을 빌드하고 Google Artifact Registry에 이미지를 푸시하는 과정을 자동화하는 셸 스크립트입니다.
