@@ -189,7 +189,12 @@ gcloud container clusters resize ${CLUSTER_NAME} \
 
 **주요 설정:**
 -   **Headless Service:** 파드 간의 안정적인 통신을 위해 `clusterIP: None`으로 설정된 헤드리스 서비스를 사용합니다.
--   **Indexed Job:** `completionMode: Indexed`를 사용하여 각 파드에 고유한 인덱스(0 또는 1)를 부여합니다. 이 인덱스는 `JOB_COMPLETION_INDEX` 환경 변수를 통해 컨테이너 내부로 전달되어 `torchrun`의 `node_rank`로 사용됩니다.
+-   **subdomain:** Pod spec에 `subdomain: llama3-finetune-job-headless`를 반드시 설정해야 합니다. 이 설정이 있어야 `{파드명}.{서비스명}.{네임스페이스}.svc.cluster.local` 형식의 파드별 DNS가 생성됩니다.
+-   **Indexed Job:** `completionMode: Indexed`를 사용하여 각 파드에 고유한 인덱스(0 또는 1)를 부여합니다. `JOB_COMPLETION_INDEX` 환경 변수는 Kubernetes가 자동으로 주입하며, 이를 `torchrun`의 `--node_rank`로 사용합니다.
+-   **MASTER_ADDR:** Headless Service DNS는 모든 파드 IP를 반환하므로 `torchrun`의 rendezvous에 불안정합니다. 반드시 rank-0 파드의 FQDN을 명시합니다:
+    ```
+    llama3-finetune-job-multinode-0.llama3-finetune-job-headless.default.svc.cluster.local
+    ```
 -   **torchrun:** `command` 섹션에서 `torchrun`을 직접 호출하여 `--nnodes=2`, `--nproc_per_node=8` 등의 분산 학습 파라미터를 명시적으로 설정합니다.
 -   **NCCL 환경 변수:** `NCCL_SOCKET_IFNAME=eth0`를 설정하여 멀티 노드 통신에 사용할 네트워크 인터페이스를 지정합니다.
 
@@ -230,4 +235,4 @@ kubectl logs -f $POD_NAME_1
 -   **`finetune-job.yaml`**: 싱글 노드 GKE 파인 튜닝 Job을 위한 Kubernetes 명세 파일입니다.
 -   **`finetune-job-multinode.yaml`**: 멀티 노드 분산 학습을 위한 Kubernetes Service 및 Job 명세 파일입니다.
 -   **`scripts/finetune.py`**: 실제 모델 로드, 데이터 처리, 파인 튜닝 및 GCS 업로드를 수행하는 Python 스크립트입니다.
--   **`push.sh`**: `Dockerfile`을 빌드하고 Google Artifact Registry에 이미지를 푸시하는 과정을 자동화하는 셸 스크립트입니다.
+-   **`push.sh`**: `Dockerfile`을 빌드하고 Google Artifact Registry에 이미지를 푸시하는 과정을 자동화하는 셸 스크립트입니다. 실행 전 `PROJECT_ID`와 `REGION` 변수를 반드시 설정하세요.
