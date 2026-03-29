@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
       peft==0.11.1 \
       trl==0.9.4 \
       bitsandbytes==0.43.1 \
-      llama-recipes==0.0.1 \
+      llama-recipes==0.0.5.post2 \
       gcsfs \
       google-cloud-storage
 
