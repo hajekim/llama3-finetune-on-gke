@@ -1,7 +1,7 @@
 import os
 import torch
 from datasets import load_dataset
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -14,9 +14,9 @@ from accelerate import Accelerator
 # =====================================================================================
 # GCS 업로드 함수
 # =====================================================================================
-def upload_to_gcs(bucket_name, source_directory, destination_blob_prefix):
+def upload_to_gcs(accelerator, bucket_name, source_directory, destination_blob_prefix):
     """로컬 디렉터리의 내용을 GCS 버킷에 업로드합니다."""
-    if Accelerator().is_main_process:
+    if accelerator.is_main_process:
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
 
@@ -24,10 +24,10 @@ def upload_to_gcs(bucket_name, source_directory, destination_blob_prefix):
             dirpath, _, filenames = local_file
             for filename in filenames:
                 local_file_path = os.path.join(dirpath, filename)
-                
+
                 relative_path = os.path.relpath(local_file_path, source_directory)
                 destination_blob_name = os.path.join(destination_blob_prefix, relative_path)
-                
+
                 blob = bucket.blob(destination_blob_name)
                 blob.upload_from_filename(local_file_path)
                 print(f"Uploaded {local_file_path} to gs://{bucket_name}/{destination_blob_name}")
@@ -44,7 +44,7 @@ accelerator = Accelerator()
 model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 if tokenizer.pad_token is None:
-    tokenizer.add_special_tokens({'pad_token': '[PAD]'}) 
+    tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
 # 2. 양자화 없이 bfloat16으로 모델 불러오기
 model = AutoModelForCausalLM.from_pretrained(
@@ -54,7 +54,8 @@ model = AutoModelForCausalLM.from_pretrained(
 model.resize_token_embeddings(len(tokenizer))
 model.config.use_cache = False
 
-# 3. LoRA 설정
+# 3. LoRA 설정 (SFTTrainer가 peft_config를 받아 내부적으로 적용함)
+# get_peft_model()을 별도 호출하면 LoRA가 이중 적용되므로 사용 금지
 lora_config = LoraConfig(
     lora_alpha=16,
     lora_dropout=0.1,
@@ -66,7 +67,6 @@ lora_config = LoraConfig(
         "gate_proj", "up_proj", "down_proj",
     ],
 )
-model = get_peft_model(model, lora_config)
 
 # 4. 데이터셋 불러오기 및 전처리
 dataset_name = "databricks/databricks-dolly-15k"
@@ -74,9 +74,16 @@ dataset = load_dataset(dataset_name, split="train")
 small_dataset = dataset.select(range(1000))
 
 def format_instruction(sample):
-	return [f"### Instruction:\n{sample['instruction']}\n\n### Response:\n{sample['response']}"]
+    # dolly-15k의 context 필드는 closed_qa, summarization 등에서 핵심 정보를 담음
+    if sample.get('context'):
+        return [
+            f"### Instruction:\n{sample['instruction']}\n\n"
+            f"### Context:\n{sample['context']}\n\n"
+            f"### Response:\n{sample['response']}"
+        ]
+    return [f"### Instruction:\n{sample['instruction']}\n\n### Response:\n{sample['response']}"]
 
-# 5. 학습 인자 설정 (FSDP 설정 제거)
+# 5. 학습 인자 설정
 training_arguments = TrainingArguments(
     output_dir="./results",
     num_train_epochs=1,
@@ -94,9 +101,10 @@ training_arguments = TrainingArguments(
     warmup_ratio=0.03,
     group_by_length=True,
     lr_scheduler_type="constant",
+    ddp_find_unused_parameters=False,  # LoRA frozen params로 인한 DDP 오류 방지
 )
 
-# 6. SFTTrainer 설정
+# 6. SFTTrainer 설정 (peft_config를 여기서 넘겨 LoRA 적용)
 trainer = SFTTrainer(
     model=model,
     train_dataset=small_dataset,
@@ -121,18 +129,17 @@ if accelerator.is_main_process:
     print(f"Model saved locally to {local_model_dir}")
 
     # 9. GCS에 모델 업로드
-    # 환경 변수에서 GCS 버킷 이름을 읽어오고, 없으면 기본값을 사용합니다.
     gcs_bucket_name = os.environ.get("GCS_BUCKET_NAME", "default-gcs-bucket-name")
     gcs_blob_prefix = "final_model"
-    
+
     if gcs_bucket_name == "default-gcs-bucket-name":
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         print("!!! WARNING: GCS_BUCKET_NAME env var not set.        !!!")
-        print("!!! Skipping GCS upload.                           !!!")
+        print("!!! Skipping GCS upload.                             !!!")
         print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     else:
         print(f"Attempting to upload to GCS bucket: {gcs_bucket_name}")
-        upload_to_gcs(gcs_bucket_name, local_model_dir, gcs_blob_prefix)
+        upload_to_gcs(accelerator, gcs_bucket_name, local_model_dir, gcs_blob_prefix)
 
 accelerator.wait_for_everyone()
 if accelerator.is_main_process:
